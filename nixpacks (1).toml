@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["ffmpeg", "python3", "pip"]
+
+[phases.install]
+cmds = [
+  "pip install yt-dlp",
+  "npm ci"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node src/index.js"
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"
