@@ -91,5 +91,11 @@ async function initializeServer() {
   });
 }
 
-// Inicializar servidor
-initializeServer();
+// Exportar app para uso como serverless function (Vercel)
+export default app;
+
+// Inicializar servidor apenas se não estiver rodando como serverless function
+// Vercel não define VERCEL, mas podemos verificar se estamos em ambiente serverless
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  initializeServer();
+}
