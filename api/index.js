@@ -4,13 +4,13 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 
 // Definir variável de ambiente para indicar que está rodando no Vercel
 process.env.VERCEL = '1';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Usar process.cwd() que funciona tanto em ESM quanto CommonJS
+// No Vercel, process.cwd() aponta para a raiz do projeto
+const projectRoot = process.cwd();
 
 // Importar rotas
 import youtubeRoutes from "../src/routes/youtube.js";
@@ -43,12 +43,18 @@ app.use("/api/retention", retentionRoutes);
 // =====================
 // FRONTEND ESTÁTICO
 // =====================
-const publicDir = path.join(__dirname, "../public");
+const publicDir = path.join(projectRoot, "public");
 app.use(express.static(publicDir));
 
 // ⚠️ ESSENCIAL: rota raiz
 app.get("/", (req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
+  const indexPath = path.join(publicDir, "index.html");
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('Erro ao servir index.html:', err);
+      res.status(404).json({ error: 'Frontend não encontrado' });
+    }
+  });
 });
 
 // =====================
