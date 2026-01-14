@@ -1,0 +1,34 @@
+# Cookies do YouTube (não commitar!)
+cookies.txt
+*.cookies
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.production
+
+# Node modules
+node_modules/
+
+# Uploads e arquivos temporários
+uploads/
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+dist/
+build/

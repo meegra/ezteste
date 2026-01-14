@@ -6,6 +6,11 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import os from 'os';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Valida URL do YouTube e extrai video ID
@@ -98,6 +103,59 @@ async function checkYtDlpAvailable() {
 }
 
 /**
+ * Gerencia cookies do YouTube para evitar erro 403
+ * Suporta cookies via variável de ambiente YOUTUBE_COOKIES (formato Netscape)
+ * ou caminho para arquivo de cookies via YOUTUBE_COOKIES_FILE
+ */
+let cookiesFilePath = null;
+
+function getCookiesPath() {
+  // Se já temos um caminho cacheado e o arquivo existe, usar
+  if (cookiesFilePath && fs.existsSync(cookiesFilePath)) {
+    return cookiesFilePath;
+  }
+
+  // Verificar se há variável de ambiente com caminho para arquivo
+  const cookiesFileEnv = process.env.YOUTUBE_COOKIES_FILE;
+  if (cookiesFileEnv && fs.existsSync(cookiesFileEnv)) {
+    cookiesFilePath = cookiesFileEnv;
+    console.log(`[COOKIES] Usando arquivo de cookies: ${cookiesFilePath}`);
+    return cookiesFilePath;
+  }
+
+  // Verificar se há cookies na variável de ambiente YOUTUBE_COOKIES
+  const cookiesEnv = process.env.YOUTUBE_COOKIES;
+  if (cookiesEnv) {
+    try {
+      // Criar arquivo temporário com os cookies
+      const tempDir = os.tmpdir();
+      const tempCookiesFile = path.join(tempDir, `youtube_cookies_${Date.now()}.txt`);
+      
+      // Escrever cookies no formato Netscape
+      fs.writeFileSync(tempCookiesFile, cookiesEnv, 'utf8');
+      cookiesFilePath = tempCookiesFile;
+      
+      console.log(`[COOKIES] Cookies carregados de variável de ambiente para: ${tempCookiesFile}`);
+      return cookiesFilePath;
+    } catch (error) {
+      console.error(`[COOKIES] Erro ao criar arquivo de cookies: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Tentar arquivo padrão no diretório do projeto
+  const defaultCookiesPath = path.join(__dirname, '../../cookies.txt');
+  if (fs.existsSync(defaultCookiesPath)) {
+    cookiesFilePath = defaultCookiesPath;
+    console.log(`[COOKIES] Usando arquivo de cookies padrão: ${defaultCookiesPath}`);
+    return cookiesFilePath;
+  }
+
+  console.warn('[COOKIES] Nenhum arquivo de cookies encontrado. Pode ocorrer erro 403.');
+  return null;
+}
+
+/**
  * Obtém metadata do vídeo usando yt-dlp CLI com JSON output
  */
 // Variável global para cache do comando yt-dlp
@@ -115,27 +173,33 @@ export async function getYouTubeVideoInfo(url) {
   ytDlpCommand = checkResult.command;
 
   return new Promise((resolve, reject) => {
+    // Obter caminho dos cookies se disponível
+    const cookiesPath = getCookiesPath();
+    
     // Preparar comando e argumentos baseado no tipo de comando
     let executable, args;
+    const baseArgs = [
+      '--dump-json',
+      '--no-warnings',
+      '--no-playlist'
+    ];
+    
+    // Adicionar cookies se disponível
+    if (cookiesPath) {
+      baseArgs.push('--cookies', cookiesPath);
+    }
+    
+    baseArgs.push(url);
+    
     if (ytDlpCommand.includes('python') && ytDlpCommand.includes('-m')) {
       // Formato: "python3 -m yt_dlp"
       const parts = ytDlpCommand.split(' ');
       executable = parts[0]; // python3
-      args = parts.slice(1).concat([  // ['-m', 'yt_dlp'] + outros args
-        '--dump-json',
-        '--no-warnings',
-        '--no-playlist',
-        url
-      ]);
+      args = parts.slice(1).concat(baseArgs); // ['-m', 'yt_dlp'] + baseArgs
     } else {
       // Formato: "yt-dlp" (binário direto)
       executable = ytDlpCommand;
-      args = [
-        '--dump-json',
-        '--no-warnings',
-        '--no-playlist',
-        url
-      ];
+      args = baseArgs;
     }
 
     console.log(`[YT-DLP] Executando: ${executable} ${args.join(' ')}`);
@@ -222,16 +286,24 @@ export async function downloadYouTubeVideo(url, outputPath) {
   }
 
   return new Promise((resolve, reject) => {
+    // Obter caminho dos cookies se disponível
+    const cookiesPath = getCookiesPath();
+    
     // Preparar comando e argumentos baseado no tipo de comando
     let executable, args;
     const baseArgs = [
       '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
       '--merge-output-format', 'mp4',
       '--no-playlist',
-      '--no-warnings',
-      '-o', outputPath,
-      url
+      '--no-warnings'
     ];
+    
+    // Adicionar cookies se disponível
+    if (cookiesPath) {
+      baseArgs.push('--cookies', cookiesPath);
+    }
+    
+    baseArgs.push('-o', outputPath, url);
 
     if (ytDlpCommand.includes('python') && ytDlpCommand.includes('-m')) {
       // Formato: "python3 -m yt_dlp"
